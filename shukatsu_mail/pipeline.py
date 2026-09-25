@@ -1,6 +1,6 @@
 """
 pipeline.py
-1. stage: 新着メール → Claudeで抽出 → 就活スケジュールに「未確認」で追加 → メールに処理済みラベル
+1. stage: 新着メール → Geminiで抽出 → 就活スケジュールに「未確認」で追加 → メールに処理済みラベル
 2. apply: 本人が「確認済」にしたエントリを企業ノートに反映(企業の紐付け・選考フェーズ更新)→「反映済」
 """
 
@@ -8,11 +8,11 @@ import logging
 import os
 from dataclasses import dataclass
 
-import anthropic
+from google.genai import errors as genai_errors
 
 from . import company, gmail, notion
 from .config import Settings
-from .extract import Extraction, ExtractionError, extract, parse_local_datetime
+from .extract import Extraction, ExtractionError, extract, make_client, parse_local_datetime
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ def body_excerpt(mail: gmail.Mail) -> list[str]:
 
 def stage(settings: Settings, dry_run: bool = False) -> None:
     service = gmail.build_service()
-    client = anthropic.Anthropic()
+    client = make_client()
     label_id = None if dry_run else gmail.ensure_label(service, settings.processed_label)
     companies = notion.list_companies()
 
@@ -140,7 +140,7 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
                     )
             if not dry_run:
                 gmail.mark_processed(service, mail.id, label_id)
-        except (ExtractionError, anthropic.APIError, RuntimeError) as e:
+        except (ExtractionError, genai_errors.APIError, RuntimeError) as e:
             # ラベルを付けないので、次回の実行で再挑戦される
             log.error("処理失敗(次回再試行): %s: %s: %s", shown(mail.subject), type(e).__name__, shown(e))
 

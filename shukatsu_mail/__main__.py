@@ -17,11 +17,9 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
-import anthropic
-
 from . import notion, pipeline
 from .config import JST, load_settings
-from .extract import extract
+from .extract import extract, make_client
 from .gmail import Mail, html_to_text
 
 
@@ -62,7 +60,7 @@ def main() -> None:
         print("追加した列: " + (", ".join(added) if added else "なし(すべて作成済み)"))
     elif args.command == "extract":
         settings = load_settings()
-        client = anthropic.Anthropic()
+        client = make_client()
         for path in args.files:
             result = extract(client, load_mail_file(path), settings)
             print(f"=== {path.name}")

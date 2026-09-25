@@ -1,16 +1,17 @@
 """
 extract.py
-メール本文を Claude API に渡し、企業名・選考フェーズ・日時・必要アクションを構造化して取り出す。
-スキーマは structured outputs で強制し、日付の妥当性などはコード側でもう一度確かめる。
+メール本文を Gemini API に渡し、企業名・選考フェーズ・日時・必要アクションを構造化して取り出す。
+JSONスキーマを指定して出力の形を固定し、日付の妥当性などはコード側でもう一度確かめる。
 """
 
 from datetime import date, datetime
 from typing import Literal
 
-import anthropic
-from pydantic import BaseModel, Field
+from google import genai
+from google.genai import types
+from pydantic import BaseModel, Field, ValidationError
 
-from .config import JST, Settings
+from .config import JST, Settings, env
 from .gmail import Mail
 
 Phase = Literal["エントリー", "書類選考", "一次面接", "二次面接", "三次面接", "最終面接", "内定", "不合格", "辞退"]
@@ -70,26 +71,35 @@ class ExtractionError(Exception):
     pass
 
 
-def extract(client: anthropic.Anthropic, mail: Mail, settings: Settings) -> Extraction:
+def make_client() -> genai.Client:
+    return genai.Client(api_key=env("GEMINI_API_KEY"))
+
+
+def extract(client: genai.Client, mail: Mail, settings: Settings) -> Extraction:
     body = mail.body
     truncated = len(body) > settings.max_body_chars
     if truncated:
         body = body[: settings.max_body_chars]
 
-    response = client.beta.messages.parse(
+    response = client.models.generate_content(
         model=settings.model,
-        max_tokens=16000,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": build_user_message(mail, body)}],
-        output_format=Extraction,
-        # 安全性フィルタで断られたときは、サーバー側で別モデルに切り替えて再実行する
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
+        contents=build_user_message(mail, body),
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_json_schema=Extraction.model_json_schema(),
+            # 関数呼び出しは使わないので、SDKの自動関数呼び出し(と毎回出る警告)を止める
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
     )
-    if response.stop_reason == "refusal" or response.parsed_output is None:
-        raise ExtractionError(f"抽出できませんでした(stop_reason={response.stop_reason})")
-
-    result = response.parsed_output
+    if not response.text:
+        # 安全性フィルタでブロックされた場合など
+        feedback = response.prompt_feedback.block_reason if response.prompt_feedback else None
+        raise ExtractionError(f"抽出できませんでした(応答が空。block_reason={feedback})")
+    try:
+        result = Extraction.model_validate_json(response.text)
+    except ValidationError as e:
+        raise ExtractionError(f"応答がスキーマに合いませんでした: {e.error_count()}件のエラー") from e
     if truncated:
         result.needs_review = True
         result.review_reasons.append(f"本文が長いため先頭{settings.max_body_chars}文字だけで抽出")

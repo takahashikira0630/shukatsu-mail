@@ -31,6 +31,7 @@ subject_keywords = [
 extra_query = ""
 
 [extract]
-model = "claude-opus-5"
+# シフト表アプリと同じモデル。精度が足りなければ上位モデルに変える
+model = "gemini-3.6-flash"
 # 本文がこれより長いときは切り詰め、「要確認」を付ける
 max_body_chars = 30000
