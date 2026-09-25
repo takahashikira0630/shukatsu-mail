@@ -1,0 +1,7 @@
+.env
+credentials.json
+__pycache__/
+*.pyc
+# 実際のメールは個人情報なのでリポジトリに入れない。テストは tests/samples の架空メールで行う
+samples_private/
+*.eml

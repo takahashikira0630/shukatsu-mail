@@ -1,0 +1,36 @@
+# 就活メール自動化ツールの設定。認証情報はここに書かず、.env / GitHub Secrets に置く。
+
+[gmail]
+# 何日前までの未処理メールを対象にするか(処理済みはラベルで除外されるので、多少長めでよい)
+newer_than_days = 3
+# 処理したメールに付けるラベル。このラベルが付いたメールは次回以降スキップされる
+processed_label = "shukatsu-mail/processed"
+
+# 送信元ドメイン(どれかに一致すれば対象)。使っているサイト・企業の採用システムを追記する
+sender_domains = [
+  "mynavi.jp",
+  "rikunabi.com",
+  "offerbox.jp",
+  "onecareer.jp",
+  "gaishishukatsu.com",
+  "labbase.jp",
+  "i-webs.jp",
+  "e2r.jp",
+  "snar.jp",
+  "hrmos.co",
+  "talent-book.jp",
+]
+
+# 件名キーワード(どれかを含めば対象)。企業の人事から直接届くメールを拾うため
+subject_keywords = [
+  "選考", "面接", "締切", "締め切り", "適性検査", "受検", "エントリー",
+  "説明会", "インターン", "書類", "結果", "内定", "ES", "WEBテスト", "Webテスト",
+]
+
+# Gmail検索に追加する条件(例: "-category:promotions")
+extra_query = ""
+
+[extract]
+model = "claude-opus-5"
+# 本文がこれより長いときは切り詰め、「要確認」を付ける
+max_body_chars = 30000
