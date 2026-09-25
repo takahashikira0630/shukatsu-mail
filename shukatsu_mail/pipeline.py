@@ -5,6 +5,7 @@ pipeline.py
 """
 
 import logging
+import os
 from dataclasses import dataclass
 
 import anthropic
@@ -16,6 +17,13 @@ from .extract import Extraction, ExtractionError, extract, parse_local_datetime
 log = logging.getLogger(__name__)
 
 BODY_EXCERPT_CHARS = 1900
+# 公開リポジトリの Actions ログは誰でも読めるので、件名・企業名・エラー本文を伏せる
+IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def shown(text: object) -> str:
+    return "(非表示)" if IN_CI else str(text)
+
 BODY_EXCERPT_BLOCKS = 3
 
 
@@ -113,14 +121,14 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
         mail = gmail.get_message(service, message_id)
         try:
             if not dry_run and notion.mail_already_staged(mail.id):
-                log.info("登録済みのためラベルのみ付与: %s", mail.subject)
+                log.info("登録済みのためラベルのみ付与: %s", shown(mail.subject))
             else:
                 result = extract(client, mail, settings)
                 entries = build_entries(result, companies)
-                log.info("%s → 就活関連=%s, %d 件", mail.subject, result.is_job_related, len(entries))
+                log.info("%s → 就活関連=%s, %d 件", shown(mail.subject), result.is_job_related, len(entries))
                 for entry in entries:
                     if dry_run:
-                        log.info("  [dry-run] %s", entry)
+                        log.info("  [dry-run] %s", shown(entry))
                         continue
                     notion.create_staged_entry(
                         title=entry.title, kind=entry.kind, start=entry.start, end=entry.end,
@@ -134,7 +142,7 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
                 gmail.mark_processed(service, mail.id, label_id)
         except (ExtractionError, anthropic.APIError, RuntimeError) as e:
             # ラベルを付けないので、次回の実行で再挑戦される
-            log.error("処理失敗(次回再試行): %s: %s", mail.subject, e)
+            log.error("処理失敗(次回再試行): %s: %s: %s", shown(mail.subject), type(e).__name__, shown(e))
 
 
 def apply(dry_run: bool = False) -> None:
@@ -151,14 +159,14 @@ def apply(dry_run: bool = False) -> None:
                 created = notion.create_company(entry["extracted_company"], entry["extracted_phase"] or None)
                 companies.append(created)
                 company_id = created["id"]
-                log.info("企業ノートに新規作成: %s", created["name"])
+                log.info("企業ノートに新規作成: %s", shown(created["name"]))
         if dry_run:
-            log.info("[dry-run] %s → 企業=%s, フェーズ=%s", entry["title"], company_id, entry["extracted_phase"])
+            log.info("[dry-run] %s → 企業=%s, フェーズ=%s", shown(entry["title"]), company_id, entry["extracted_phase"])
             continue
         if company_id and not entry["company_ids"]:
             notion.link_company(entry["id"], company_id)
         if company_id and entry["extracted_phase"]:
             notion.update_company_phase(company_id, entry["extracted_phase"])
         if company_id is None:
-            log.warning("企業名が無いため企業ノートには反映せず: %s", entry["title"])
+            log.warning("企業名が無いため企業ノートには反映せず: %s", shown(entry["title"]))
         notion.mark_applied(entry["id"])

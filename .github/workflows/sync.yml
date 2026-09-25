@@ -2,8 +2,9 @@ name: sync-shukatsu-mail
 
 on:
   schedule:
-    # UTC表記。30分ごと(非公開リポジトリの無料枠 2,000分/月 に収まる間隔。READMEの注意を参照)
-    - cron: "*/30 * * * *"
+    # UTC表記。日本時間の8:00〜23:45に15分ごと(JST = UTC+9)
+    - cron: "*/15 23 * * *"   # JST 8時台
+    - cron: "*/15 0-14 * * *" # JST 9時〜23時台
   workflow_dispatch: {}
 
 # 前回の実行が終わる前に次が始まって二重登録しないようにする
