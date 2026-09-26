@@ -30,11 +30,7 @@ GitHub Actions(日本時間8〜23時台に15分ごと)
 
 1. https://www.notion.so/profile/integrations でインテグレーションを作り、トークンを控える(shukatsu-mobile のものを流用してもよい)
 2. 「就活オールインワン・ポータル」ページの「…」→「コネクトの追加」で接続する
-3. 就活スケジュールに本ツール用の列を追加する(既存の列・ビューは変更しない)
-
-   ```bash
-   python -m shukatsu_mail setup-notion
-   ```
+3. 本ツール用の列は、初回の実行時に就活スケジュールへ自動で追加される(既存の列・ビューは変更しない)。手元で先に追加したいときは `python -m shukatsu_mail setup-notion`
 
    追加される列: ステータス(未確認/確認済/反映済)・要確認・確認メモ・抽出企業名・抽出フェーズ・メールID・元メール
 4. Notion で就活スケジュールに「未確認」ビューを作る(フィルタ: ステータス = 未確認、並び順: 日時)。スマホではこのビューを開けば確認待ちが一覧できる
@@ -74,7 +70,7 @@ python -m shukatsu_mail run                       # 本番
 
 1. このフォルダを GitHub リポジトリに push する(`.env` と `credentials.json` は `.gitignore` 済み)
 2. Settings → Secrets and variables → Actions に、`.env.example` の7つの値を登録する
-3. Actions タブで `sync-shukatsu-mail` を選び「Run workflow」で1回手動実行して、ログを確認する
+3. Actions タブで `sync-shukatsu-mail` を選び「Run workflow」で手動実行する。「Notion・Gmailに書き込まずに試す」にチェックが入った状態(既定)で、まず接続と件数を確認する
 
 ## 注意点
 

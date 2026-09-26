@@ -5,7 +5,12 @@ on:
     # UTC表記。日本時間の8:00〜23:45に15分ごと(JST = UTC+9)
     - cron: "*/15 23 * * *"   # JST 8時台
     - cron: "*/15 0-14 * * *" # JST 9時〜23時台
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Notion・Gmailに書き込まずに試す"
+        type: boolean
+        default: true
 
 # 前回の実行が終わる前に次が始まって二重登録しないようにする
 concurrency:
@@ -23,7 +28,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python -m shukatsu_mail run
+      # 手動実行で dry_run にチェックしたときだけ書き込まない(定期実行では inputs が空なので本番)
+      - run: python -m shukatsu_mail run ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}

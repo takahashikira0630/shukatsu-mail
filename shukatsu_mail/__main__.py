@@ -66,6 +66,10 @@ def main() -> None:
             print(f"=== {path.name}")
             print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
     else:
+        # 本ツール用の列が無ければ先に追加する(既にあれば何もしない)。setup-notion を別に実行しなくてよい
+        added = notion.ensure_schedule_properties()
+        if added:
+            logging.info("就活スケジュールに列を追加: %s", ", ".join(added))
         if args.command in ("run", "stage"):
             pipeline.stage(load_settings(), dry_run=args.dry_run)
         if args.command in ("run", "apply"):
