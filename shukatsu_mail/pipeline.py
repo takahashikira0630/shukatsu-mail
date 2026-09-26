@@ -125,15 +125,22 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
     message_ids = gmail.list_new_message_ids(service, settings)
     log.info("対象メール: %d 件(今回 Gemini に送るのは古い順に最大 %d 件)", len(message_ids), settings.max_mails_per_run)
     last_call = 0.0
-    calls = skipped = 0
+    calls = skipped = would_send = 0
+    stopped = False  # 件数の上限か回数制限に達したら、それ以降は Gemini を呼ばない
     for message_id in message_ids:
         if calls >= settings.max_mails_per_run:
+            stopped = True
+        if stopped and not dry_run:
             break
         mail = gmail.get_message(service, message_id)
         if is_probably_ad(mail, settings.important_keywords):
             skipped += 1
             if not dry_run:
                 gmail.add_label(service, mail.id, skipped_label_id)
+            continue
+        if stopped:
+            # dry-run では、残りのメールも「飛ばす/送る」の分類だけ数えて、無料枠に収まるかの目安にする
+            would_send += 1
             continue
         try:
             if not dry_run and notion.mail_already_staged(mail.id):
@@ -164,12 +171,16 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
             log.error("Gemini エラー(次回再試行): %s %s: %s", e.code, e.status, (e.message or "")[:300])
             if e.code == 429:
                 log.warning("回数制限に達したため、今回の処理はここで終了します")
-                break
+                stopped = True
+                if not dry_run:
+                    break
         except (ExtractionError, RuntimeError) as e:
             # ラベルを付けないので、次回の実行で再挑戦される
             log.error("処理失敗(次回再試行): %s: %s: %s", shown(mail.subject), type(e).__name__, shown(e))
 
     log.info("Gemini に送信: %d 件 / 広告として飛ばした: %d 件", calls, skipped)
+    if dry_run and would_send:
+        log.info("[dry-run] 残りで Gemini に送ることになるメール: %d 件", would_send)
 
 
 def apply(dry_run: bool = False) -> None:
