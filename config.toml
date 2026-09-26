@@ -5,6 +5,8 @@
 newer_than_days = 3
 # 処理したメールに付けるラベル。このラベルが付いたメールは次回以降スキップされる
 processed_label = "shukatsu-mail/processed"
+# Gemini に送らずに飛ばした一斉配信メールに付けるラベル。たまに Gmail で眺めて、大事な連絡が混ざっていないか確認する
+skipped_label = "shukatsu-mail/skipped"
 
 # 送信元ドメイン(どれかに一致すれば対象)。使っているサイト・企業の採用システムを追記する
 sender_domains = [
@@ -30,12 +32,21 @@ subject_keywords = [
 # Gmail検索に追加する条件(例: "-category:promotions")
 extra_query = ""
 
+[filter]
+# 一斉配信のメール(配信停止リンク付き)は広告であることが多いので、件名にこれらの言葉が無ければ Gemini に送らない。
+# Gemini 無料枠(1日20回)を、本当の選考連絡に使うため
+important_keywords = [
+  "面接", "選考", "締切", "締め切り", "期限", "適性検査", "受検", "日程",
+  "結果", "通過", "合格", "内定", "ご予約", "予約完了", "参加確定", "リマインド",
+]
+
 [extract]
 # シフト表アプリと同じモデル。精度が足りなければ上位モデルに変える
 model = "gemini-3.6-flash"
 # 本文がこれより長いときは切り詰め、「要確認」を付ける
 max_body_chars = 30000
-# 無料枠の回数制限に当たらないよう、1回の実行で読むメールの数と、Geminiを呼ぶ間隔を絞る。
+# 無料枠の回数制限に当たらないよう、1回の実行で Gemini に送るメールの数と、呼ぶ間隔を絞る。
 # 残りは次回(15分後)に回る。429(回数制限)が返ったら、その回はそこで打ち切る
-max_mails_per_run = 15
-min_interval_seconds = 10
+# 無料枠は gemini-3.6-flash で1分5回・1日20回(2026-09-26 時点)。1日の枠を1日じゅうに分けて使う
+max_mails_per_run = 5
+min_interval_seconds = 13

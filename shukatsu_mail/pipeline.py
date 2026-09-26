@@ -110,23 +110,38 @@ def body_excerpt(mail: gmail.Mail) -> list[str]:
     return [head] + chunks
 
 
+def is_probably_ad(mail: gmail.Mail, important_keywords: list[str]) -> bool:
+    """一斉配信で、件名に選考の連絡らしい言葉が無いメール。Gemini に送らずに飛ばす。"""
+    return mail.bulk and not any(k in mail.subject for k in important_keywords)
+
+
 def stage(settings: Settings, dry_run: bool = False) -> None:
     service = gmail.build_service()
     client = make_client()
     label_id = None if dry_run else gmail.ensure_label(service, settings.processed_label)
+    skipped_label_id = None if dry_run else gmail.ensure_label(service, settings.skipped_label)
     companies = notion.list_companies()
 
     message_ids = gmail.list_new_message_ids(service, settings)
-    log.info("対象メール: %d 件(今回処理するのは古い順に最大 %d 件)", len(message_ids), settings.max_mails_per_run)
+    log.info("対象メール: %d 件(今回 Gemini に送るのは古い順に最大 %d 件)", len(message_ids), settings.max_mails_per_run)
     last_call = 0.0
-    for message_id in message_ids[: settings.max_mails_per_run]:
+    calls = skipped = 0
+    for message_id in message_ids:
+        if calls >= settings.max_mails_per_run:
+            break
         mail = gmail.get_message(service, message_id)
+        if is_probably_ad(mail, settings.important_keywords):
+            skipped += 1
+            if not dry_run:
+                gmail.add_label(service, mail.id, skipped_label_id)
+            continue
         try:
             if not dry_run and notion.mail_already_staged(mail.id):
                 log.info("登録済みのためラベルのみ付与: %s", shown(mail.subject))
             else:
                 time.sleep(max(0.0, last_call + settings.min_interval_seconds - time.monotonic()))
                 last_call = time.monotonic()
+                calls += 1
                 result = extract(client, mail, settings)
                 entries = build_entries(result, companies)
                 log.info("%s → 就活関連=%s, %d 件", shown(mail.subject), result.is_job_related, len(entries))
@@ -143,7 +158,7 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
                         mail_id=mail.id, mail_url=mail.url, body_blocks=body_excerpt(mail),
                     )
             if not dry_run:
-                gmail.mark_processed(service, mail.id, label_id)
+                gmail.add_label(service, mail.id, label_id)
         except genai_errors.APIError as e:
             # Gemini のエラー本文にメールの内容は含まれないので、原因が分かるように表示する
             log.error("Gemini エラー(次回再試行): %s %s: %s", e.code, e.status, (e.message or "")[:300])
@@ -153,6 +168,8 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
         except (ExtractionError, RuntimeError) as e:
             # ラベルを付けないので、次回の実行で再挑戦される
             log.error("処理失敗(次回再試行): %s: %s: %s", shown(mail.subject), type(e).__name__, shown(e))
+
+    log.info("Gemini に送信: %d 件 / 広告として飛ばした: %d 件", calls, skipped)
 
 
 def apply(dry_run: bool = False) -> None:

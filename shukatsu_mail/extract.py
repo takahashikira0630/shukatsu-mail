@@ -73,7 +73,7 @@ class ExtractionError(Exception):
 
 def make_client() -> genai.Client:
     # 503(混雑)などは待ってから数回やり直す。429(回数制限)はやり直さず、呼び出し側で打ち切る
-    retry = types.HttpRetryOptions(attempts=4, initial_delay=5, max_delay=60, http_status_codes=[500, 502, 503, 504])
+    retry = types.HttpRetryOptions(attempts=3, initial_delay=15, max_delay=60, http_status_codes=[500, 502, 503, 504])
     return genai.Client(api_key=env("GEMINI_API_KEY"), http_options=types.HttpOptions(retry_options=retry))
 
 

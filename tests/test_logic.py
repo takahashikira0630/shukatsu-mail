@@ -8,7 +8,8 @@ from shukatsu_mail.__main__ import load_mail_file
 from shukatsu_mail.config import Settings
 from shukatsu_mail.extract import Extraction, ExtractedEvent, validate_dates
 from shukatsu_mail.gmail import build_query, html_to_text
-from shukatsu_mail.pipeline import build_entries, to_notion_date
+from shukatsu_mail.gmail import Mail
+from shukatsu_mail.pipeline import build_entries, is_probably_ad, to_notion_date
 
 SAMPLES = Path(__file__).parent / "samples"
 COMPANIES = [
@@ -90,8 +91,18 @@ class DateTest(unittest.TestCase):
 
 class GmailHelpersTest(unittest.TestCase):
     def test_query(self):
-        s = Settings(3, "shukatsu-mail/processed", ["mynavi.jp"], ["面接"], "", 30000, "m", 15, 10)
-        self.assertEqual(build_query(s), 'newer_than:3d -label:"shukatsu-mail/processed" {from:mynavi.jp subject:"面接"}')
+        s = Settings(newer_than_days=3, processed_label="p", skipped_label="s", important_keywords=[],
+                     sender_domains=["mynavi.jp"], subject_keywords=["面接"], extra_query="",
+                     max_body_chars=30000, model="m", max_mails_per_run=5, min_interval_seconds=13)
+        self.assertEqual(build_query(s), 'newer_than:3d -label:"p" -label:"s" {from:mynavi.jp subject:"面接"}')
+
+    def test_ad_filter(self):
+        def mail(subject, bulk):
+            return Mail(id="x", subject=subject, sender="", received_at=None, body="", bulk=bulk)
+        keywords = ["面接", "締切"]
+        self.assertTrue(is_probably_ad(mail("【今週の特集】人気企業まとめ", True), keywords))
+        self.assertFalse(is_probably_ad(mail("一次面接のご案内", True), keywords))      # 一斉配信でも重要語があれば送る
+        self.assertFalse(is_probably_ad(mail("今後のご案内", False), keywords))         # 個別メールは必ず送る
 
     def test_html_keeps_links(self):
         text = html_to_text('<p>受検は<a href="https://t.example/x">こちら</a></p><style>p{}</style>')

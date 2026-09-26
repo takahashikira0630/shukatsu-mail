@@ -29,6 +29,8 @@ class Mail:
     sender: str
     received_at: datetime
     body: str
+    # 一斉配信(メルマガ・広告)のヘッダーが付いているか
+    bulk: bool = False
 
     @property
     def url(self) -> str:
@@ -54,6 +56,7 @@ def build_query(settings: Settings) -> str:
     parts = [
         f"newer_than:{settings.newer_than_days}d",
         f'-label:"{settings.processed_label}"',
+        f'-label:"{settings.skipped_label}"',
         "{" + " ".join(terms) + "}",
     ]
     if settings.extra_query:
@@ -90,6 +93,7 @@ def get_message(service, message_id: str) -> Mail:
         sender=headers.get("from", ""),
         received_at=received_at,
         body=extract_body(msg["payload"]),
+        bulk="list-unsubscribe" in headers or headers.get("precedence", "").lower() in ("bulk", "list"),
     )
 
 
@@ -139,7 +143,7 @@ def ensure_label(service, name: str) -> str:
     return created["id"]
 
 
-def mark_processed(service, message_id: str, label_id: str) -> None:
+def add_label(service, message_id: str, label_id: str) -> None:
     service.users().messages().modify(
         userId="me", id=message_id, body={"addLabelIds": [label_id]}
     ).execute()
