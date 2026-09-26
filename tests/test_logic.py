@@ -12,6 +12,13 @@ from shukatsu_mail.gmail import Mail
 from shukatsu_mail.pipeline import build_entries, is_probably_ad, to_notion_date
 
 SAMPLES = Path(__file__).parent / "samples"
+
+
+def settings(**kw) -> Settings:
+    base = dict(newer_than_days=3, processed_label="p", skipped_label="s", important_keywords=[], ad_senders=[],
+                sender_domains=[], subject_keywords=[], extra_query="", max_body_chars=30000, model="m",
+                max_mails_per_run=5, min_interval_seconds=13)
+    return Settings(**(base | kw))
 COMPANIES = [
     {"id": "c1", "name": "架空テック株式会社", "phase": "書類選考"},
     {"id": "c2", "name": "(株)サンプル商事", "phase": "エントリー"},
@@ -91,18 +98,19 @@ class DateTest(unittest.TestCase):
 
 class GmailHelpersTest(unittest.TestCase):
     def test_query(self):
-        s = Settings(newer_than_days=3, processed_label="p", skipped_label="s", important_keywords=[],
-                     sender_domains=["mynavi.jp"], subject_keywords=["面接"], extra_query="",
-                     max_body_chars=30000, model="m", max_mails_per_run=5, min_interval_seconds=13)
+        s = settings(sender_domains=["mynavi.jp"], subject_keywords=["面接"])
         self.assertEqual(build_query(s), 'newer_than:3d -label:"p" -label:"s" {from:mynavi.jp subject:"面接"}')
 
     def test_ad_filter(self):
-        def mail(subject, bulk):
-            return Mail(id="x", subject=subject, sender="", received_at=None, body="", bulk=bulk)
-        keywords = ["面接", "締切"]
-        self.assertTrue(is_probably_ad(mail("【今週の特集】人気企業まとめ", True), keywords))
-        self.assertFalse(is_probably_ad(mail("一次面接のご案内", True), keywords))      # 一斉配信でも重要語があれば送る
-        self.assertFalse(is_probably_ad(mail("今後のご案内", False), keywords))         # 個別メールは必ず送る
+        def mail(subject, bulk=False, sender="人事部 <saiyo@kaku-tech.example>"):
+            return Mail(id="x", subject=subject, sender=sender, received_at=None, body="", bulk=bulk)
+        s = settings(important_keywords=["面接", "締切"], ad_senders=["キャリアパーク", "onecareer"])
+        self.assertTrue(is_probably_ad(mail("【今週の特集】人気企業まとめ", bulk=True), s))
+        self.assertFalse(is_probably_ad(mail("一次面接のご案内", bulk=True), s))   # 一斉配信でも重要語があれば送る
+        self.assertFalse(is_probably_ad(mail("今後のご案内"), s))                  # 個別メールは必ず送る
+        self.assertTrue(is_probably_ad(mail("あなたにおすすめの企業", sender="キャリアパーク! <info@example.jp>"), s))
+        self.assertTrue(is_probably_ad(mail("インターン特集", sender="ONE CAREER <news@OneCareer.jp>"), s))
+        self.assertFalse(is_probably_ad(mail("【締切】ES提出", sender="キャリアパーク <info@example.jp>"), s))
 
     def test_html_keeps_links(self):
         text = html_to_text('<p>受検は<a href="https://t.example/x">こちら</a></p><style>p{}</style>')

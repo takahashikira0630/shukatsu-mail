@@ -1,8 +1,8 @@
 # 就活メール自動化ツールの設定。認証情報はここに書かず、.env / GitHub Secrets に置く。
 
 [gmail]
-# 何日前までの未処理メールを対象にするか(処理済みはラベルで除外されるので、多少長めでよい)
-newer_than_days = 3
+# 何日前までの未処理メールを対象にするか。無料枠の都合で後回しになったメールが対象外にならないよう、長めにする
+newer_than_days = 7
 # 処理したメールに付けるラベル。このラベルが付いたメールは次回以降スキップされる
 processed_label = "shukatsu-mail/processed"
 # Gemini に送らずに飛ばした一斉配信メールに付けるラベル。たまに Gmail で眺めて、大事な連絡が混ざっていないか確認する
@@ -13,7 +13,6 @@ sender_domains = [
   "mynavi.jp",
   "rikunabi.com",
   "offerbox.jp",
-  "onecareer.jp",
   "gaishishukatsu.com",
   "labbase.jp",
   "i-webs.jp",
@@ -33,11 +32,20 @@ subject_keywords = [
 extra_query = ""
 
 [filter]
-# 一斉配信のメール(配信停止リンク付き)は広告であることが多いので、件名にこれらの言葉が無ければ Gemini に送らない。
-# Gemini 無料枠(1日20回)を、本当の選考連絡に使うため
+# 一斉配信のメール(配信停止リンク付き)と、下の ad_senders からのメールは広告であることが多いので、
+# 件名に important_keywords のどれも無ければ Gemini に送らない。Gemini 無料枠(1日20回)を本当の選考連絡に使うため
 important_keywords = [
   "面接", "選考", "締切", "締め切り", "期限", "適性検査", "受検", "日程",
   "結果", "通過", "合格", "内定", "ご予約", "予約完了", "参加確定", "リマインド",
+]
+# 営業・おすすめメールが多い差出人。差出人名かアドレスにこの文字列を含めば該当(大文字小文字・全角半角は区別しない)
+ad_senders = [
+  "キャリアパーク", "careerpark",
+  "みん就", "nikki.ne.jp",
+  "就活会議", "しゅうかつ会議", "shukatsu-kaigi",
+  "サポーターズ", "supporterz",
+  "ワンキャリア", "onecareer",
+  "openwork", "vorkers",
 ]
 
 [extract]

@@ -34,6 +34,7 @@ class Settings:
     processed_label: str
     skipped_label: str
     important_keywords: list[str]
+    ad_senders: list[str]
     sender_domains: list[str]
     subject_keywords: list[str]
     extra_query: str
@@ -52,6 +53,7 @@ def load_settings(path: Path = ROOT / "config.toml") -> Settings:
         processed_label=gmail["processed_label"],
         skipped_label=gmail["skipped_label"],
         important_keywords=raw["filter"]["important_keywords"],
+        ad_senders=raw["filter"]["ad_senders"],
         sender_domains=gmail["sender_domains"],
         subject_keywords=gmail["subject_keywords"],
         extra_query=gmail.get("extra_query", ""),

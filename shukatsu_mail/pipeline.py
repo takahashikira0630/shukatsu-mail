@@ -7,6 +7,7 @@ pipeline.py
 import logging
 import os
 import time
+import unicodedata
 from dataclasses import dataclass
 
 from google.genai import errors as genai_errors
@@ -110,9 +111,17 @@ def body_excerpt(mail: gmail.Mail) -> list[str]:
     return [head] + chunks
 
 
-def is_probably_ad(mail: gmail.Mail, important_keywords: list[str]) -> bool:
-    """一斉配信で、件名に選考の連絡らしい言葉が無いメール。Gemini に送らずに飛ばす。"""
-    return mail.bulk and not any(k in mail.subject for k in important_keywords)
+def _fold(text: str) -> str:
+    return unicodedata.normalize("NFKC", text).lower()
+
+
+def is_probably_ad(mail: gmail.Mail, settings: Settings) -> bool:
+    """一斉配信か営業メールの多い差出人からで、件名に選考の連絡らしい言葉が無いメール。Gemini に送らずに飛ばす。"""
+    sender = _fold(mail.sender)
+    from_ad_sender = any(_fold(s) in sender for s in settings.ad_senders)
+    subject = _fold(mail.subject)
+    has_important_word = any(_fold(k) in subject for k in settings.important_keywords)
+    return (mail.bulk or from_ad_sender) and not has_important_word
 
 
 def stage(settings: Settings, dry_run: bool = False) -> None:
@@ -133,7 +142,7 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
         if stopped and not dry_run:
             break
         mail = gmail.get_message(service, message_id)
-        if is_probably_ad(mail, settings.important_keywords):
+        if is_probably_ad(mail, settings):
             skipped += 1
             if not dry_run:
                 gmail.add_label(service, mail.id, skipped_label_id)
