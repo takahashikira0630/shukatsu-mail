@@ -20,6 +20,10 @@ from .config import Settings, env
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 # ラベル付けのため readonly ではなく modify が必要(メールの削除はできないスコープ)
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+# 1分あたりの取得量の上限(403 rateLimitExceeded / 429)に当たったら、待ってからやり直す回数
+RETRIES = 5
+# 広告かどうかの判定に使うヘッダー。本文を取らない分、取得が軽い
+_METADATA_HEADERS = ["Subject", "From", "Date", "List-Unsubscribe", "Precedence"]
 
 
 @dataclass
@@ -71,7 +75,7 @@ def list_new_message_ids(service, settings: Settings) -> list[str]:
     while True:
         resp = service.users().messages().list(
             userId="me", q=query, pageToken=page_token, maxResults=100
-        ).execute()
+        ).execute(num_retries=RETRIES)
         ids += [m["id"] for m in resp.get("messages", [])]
         page_token = resp.get("nextPageToken")
         if not page_token:
@@ -80,8 +84,13 @@ def list_new_message_ids(service, settings: Settings) -> list[str]:
     return list(reversed(ids))
 
 
-def get_message(service, message_id: str) -> Mail:
-    msg = service.users().messages().get(userId="me", id=message_id, format="full").execute()
+def get_message(service, message_id: str, with_body: bool = True) -> Mail:
+    """with_body=False ならヘッダーだけ取得する(body は空)。"""
+    request = service.users().messages().get(
+        userId="me", id=message_id,
+        **({"format": "full"} if with_body else {"format": "metadata", "metadataHeaders": _METADATA_HEADERS}),
+    )
+    msg = request.execute(num_retries=RETRIES)
     headers = {h["name"].lower(): h["value"] for h in msg["payload"].get("headers", [])}
     if "date" in headers:
         received_at = parsedate_to_datetime(headers["date"])
@@ -92,7 +101,7 @@ def get_message(service, message_id: str) -> Mail:
         subject=headers.get("subject", ""),
         sender=headers.get("from", ""),
         received_at=received_at,
-        body=extract_body(msg["payload"]),
+        body=extract_body(msg["payload"]) if with_body else "",
         bulk="list-unsubscribe" in headers or headers.get("precedence", "").lower() in ("bulk", "list"),
     )
 
@@ -132,18 +141,18 @@ def html_to_text(source: str) -> str:
 
 
 def ensure_label(service, name: str) -> str:
-    labels = service.users().labels().list(userId="me").execute().get("labels", [])
+    labels = service.users().labels().list(userId="me").execute(num_retries=RETRIES).get("labels", [])
     for label in labels:
         if label["name"] == name:
             return label["id"]
     created = service.users().labels().create(
         userId="me",
         body={"name": name, "labelListVisibility": "labelShow", "messageListVisibility": "show"},
-    ).execute()
+    ).execute(num_retries=RETRIES)
     return created["id"]
 
 
 def add_label(service, message_id: str, label_id: str) -> None:
     service.users().messages().modify(
         userId="me", id=message_id, body={"addLabelIds": [label_id]}
-    ).execute()
+    ).execute(num_retries=RETRIES)

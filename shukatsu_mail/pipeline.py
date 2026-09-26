@@ -141,7 +141,8 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
             stopped = True
         if stopped and not dry_run:
             break
-        mail = gmail.get_message(service, message_id)
+        # まずヘッダーだけで広告かどうかを判定し、Gemini に送るものだけ本文を取る
+        mail = gmail.get_message(service, message_id, with_body=False)
         if is_probably_ad(mail, settings):
             skipped += 1
             if not dry_run:
@@ -151,6 +152,7 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
             # dry-run では、残りのメールも「飛ばす/送る」の分類だけ数えて、無料枠に収まるかの目安にする
             would_send += 1
             continue
+        mail = gmail.get_message(service, message_id)
         try:
             if not dry_run and notion.mail_already_staged(mail.id):
                 log.info("登録済みのためラベルのみ付与: %s", shown(mail.subject))
