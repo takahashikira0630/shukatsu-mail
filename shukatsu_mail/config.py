@@ -37,6 +37,8 @@ class Settings:
     extra_query: str
     max_body_chars: int
     model: str
+    max_mails_per_run: int
+    min_interval_seconds: float
 
 
 def load_settings(path: Path = ROOT / "config.toml") -> Settings:
@@ -50,6 +52,8 @@ def load_settings(path: Path = ROOT / "config.toml") -> Settings:
         subject_keywords=gmail["subject_keywords"],
         extra_query=gmail.get("extra_query", ""),
         max_body_chars=raw["extract"]["max_body_chars"],
+        max_mails_per_run=raw["extract"]["max_mails_per_run"],
+        min_interval_seconds=raw["extract"]["min_interval_seconds"],
         model=raw["extract"]["model"],
     )
 

@@ -90,7 +90,7 @@ class DateTest(unittest.TestCase):
 
 class GmailHelpersTest(unittest.TestCase):
     def test_query(self):
-        s = Settings(3, "shukatsu-mail/processed", ["mynavi.jp"], ["面接"], "", 30000, "m")
+        s = Settings(3, "shukatsu-mail/processed", ["mynavi.jp"], ["面接"], "", 30000, "m", 15, 10)
         self.assertEqual(build_query(s), 'newer_than:3d -label:"shukatsu-mail/processed" {from:mynavi.jp subject:"面接"}')
 
     def test_html_keeps_links(self):

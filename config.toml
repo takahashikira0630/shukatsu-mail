@@ -35,3 +35,7 @@ extra_query = ""
 model = "gemini-3.6-flash"
 # 本文がこれより長いときは切り詰め、「要確認」を付ける
 max_body_chars = 30000
+# 無料枠の回数制限に当たらないよう、1回の実行で読むメールの数と、Geminiを呼ぶ間隔を絞る。
+# 残りは次回(15分後)に回る。429(回数制限)が返ったら、その回はそこで打ち切る
+max_mails_per_run = 15
+min_interval_seconds = 10

@@ -6,6 +6,7 @@ pipeline.py
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 
 from google.genai import errors as genai_errors
@@ -116,13 +117,16 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
     companies = notion.list_companies()
 
     message_ids = gmail.list_new_message_ids(service, settings)
-    log.info("対象メール: %d 件", len(message_ids))
-    for message_id in message_ids:
+    log.info("対象メール: %d 件(今回処理するのは古い順に最大 %d 件)", len(message_ids), settings.max_mails_per_run)
+    last_call = 0.0
+    for message_id in message_ids[: settings.max_mails_per_run]:
         mail = gmail.get_message(service, message_id)
         try:
             if not dry_run and notion.mail_already_staged(mail.id):
                 log.info("登録済みのためラベルのみ付与: %s", shown(mail.subject))
             else:
+                time.sleep(max(0.0, last_call + settings.min_interval_seconds - time.monotonic()))
+                last_call = time.monotonic()
                 result = extract(client, mail, settings)
                 entries = build_entries(result, companies)
                 log.info("%s → 就活関連=%s, %d 件", shown(mail.subject), result.is_job_related, len(entries))
@@ -140,7 +144,13 @@ def stage(settings: Settings, dry_run: bool = False) -> None:
                     )
             if not dry_run:
                 gmail.mark_processed(service, mail.id, label_id)
-        except (ExtractionError, genai_errors.APIError, RuntimeError) as e:
+        except genai_errors.APIError as e:
+            # Gemini のエラー本文にメールの内容は含まれないので、原因が分かるように表示する
+            log.error("Gemini エラー(次回再試行): %s %s: %s", e.code, e.status, (e.message or "")[:300])
+            if e.code == 429:
+                log.warning("回数制限に達したため、今回の処理はここで終了します")
+                break
+        except (ExtractionError, RuntimeError) as e:
             # ラベルを付けないので、次回の実行で再挑戦される
             log.error("処理失敗(次回再試行): %s: %s: %s", shown(mail.subject), type(e).__name__, shown(e))
 
