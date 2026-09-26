@@ -15,7 +15,7 @@ SAMPLES = Path(__file__).parent / "samples"
 
 
 def settings(**kw) -> Settings:
-    base = dict(newer_than_days=3, processed_label="p", skipped_label="s", important_keywords=[], ad_senders=[],
+    base = dict(newer_than_days=3, start_date="", processed_label="p", skipped_label="s", important_keywords=[], ad_senders=[],
                 sender_domains=[], subject_keywords=[], extra_query="", max_body_chars=30000, model="m",
                 max_mails_per_run=5, min_interval_seconds=13)
     return Settings(**(base | kw))
@@ -100,6 +100,8 @@ class GmailHelpersTest(unittest.TestCase):
     def test_query(self):
         s = settings(sender_domains=["mynavi.jp"], subject_keywords=["面接"])
         self.assertEqual(build_query(s), 'newer_than:3d -label:"p" -label:"s" {from:mynavi.jp subject:"面接"}')
+        s = settings(sender_domains=["mynavi.jp"], start_date="2026-09-26")
+        self.assertTrue(build_query(s).endswith("} after:2026/09/26"))
 
     def test_ad_filter(self):
         def mail(subject, bulk=False, sender="人事部 <saiyo@kaku-tech.example>"):

@@ -31,6 +31,7 @@ STATUS_APPLIED = "反映済"
 @dataclass
 class Settings:
     newer_than_days: int
+    start_date: str
     processed_label: str
     skipped_label: str
     important_keywords: list[str]
@@ -50,6 +51,7 @@ def load_settings(path: Path = ROOT / "config.toml") -> Settings:
     gmail = raw["gmail"]
     return Settings(
         newer_than_days=gmail["newer_than_days"],
+        start_date=gmail.get("start_date", ""),
         processed_label=gmail["processed_label"],
         skipped_label=gmail["skipped_label"],
         important_keywords=raw["filter"]["important_keywords"],

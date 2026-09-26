@@ -63,6 +63,8 @@ def build_query(settings: Settings) -> str:
         f'-label:"{settings.skipped_label}"',
         "{" + " ".join(terms) + "}",
     ]
+    if settings.start_date:
+        parts.append("after:" + settings.start_date.replace("-", "/"))
     if settings.extra_query:
         parts.append(settings.extra_query)
     return " ".join(parts)
